@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Core Infrastructure for LLM Code Reviewer (DynamoDB, SNS).
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: Your registered domain name (e.g., example.com).
+
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: The Route 53 Hosted Zone ID for your domain.
+
+Resources:
+  # --------------------------------------------------------------------------
+  #  Simple Notify Service
+  # --------------------------------------------------------------------------
+
+  # --- 利用キー発行承認通知用SNSトピック ---
+  AutomationUsageKeyApprovalNotifyTopic:
+    Type: AWS::SNS::Topic
+
+  # --------------------------------------------------------------------------
+  #  DynamoDB
+  # --------------------------------------------------------------------------
+
+  # --- 利用キー管理用テーブル ---
+  UsageKeyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: usage_key_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: usage_key_id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '3'
+        WriteCapacityUnits: '3'
+
+  # --------------------------------------------------------------------------
+  #  AWS Certificate Manager
+  # --------------------------------------------------------------------------
+
+  # --- 証明書 ---
+  AcmCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+
+Outputs:
+  UsageKeyTableName:
+    Description: The name of the DynamoDB table for usage key management.
+    Value: !Ref UsageKeyTable
+  AutomationUsageKeyApprovalNotifyTopicArn:
+    Description: The ARN of the SNS topic for usage key approval notifications.
+    Value: !Ref AutomationUsageKeyApprovalNotifyTopic
+  CertificateArn:
+    Description: The ARN of the ACM certificate.
+    Value: !Ref AcmCertificate
+    Export:
+      Name: !Sub "${AWS::StackName}-CertificateArn"

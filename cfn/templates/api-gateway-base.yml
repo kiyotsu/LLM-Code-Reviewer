@@ -1,0 +1,24 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Base API Gateway for LLM Code Reviewer.
+
+Resources:
+
+  # --- サービス共通 - REST API ---
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: LLMCodeReviewerApi
+      Description: REST API for LLM Code Reviewer
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      DisableExecuteApiEndpoint: true
+
+
+Outputs:
+  RestApiId:
+    Description: The ID of the REST API.
+    Value: !Ref RestApi
+  RootResourceId:
+    Description: The root resource ID of the REST API.
+    Value: !GetAtt RestApi.RootResourceId

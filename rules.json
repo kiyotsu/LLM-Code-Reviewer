@@ -1,0 +1,12 @@
+{
+    "Maintainability": [
+        "Duplicated code is avoided; common logic is extracted into reusable functions or modules."
+    ],
+    "Readability": [
+        "Function and variable names exclusively use English words.",
+        "Function and variable names are clearly descriptive of their role or processing content."
+    ],
+    "Security": [
+        "Functions gracefully handle abnormal or unexpected input values to prevent crashes, undefined behavior, or security vulnerabilities."
+    ]
+}

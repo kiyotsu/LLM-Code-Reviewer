@@ -1,0 +1,238 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Usage Key Service for LLM Code Reviewer.
+
+Parameters:
+  SystemName:
+    Type: String
+    Description: The system name of the stack.
+  Enviroment:
+    Type: String
+    Description: The deployment stage name.
+  ImageUri:
+    Type: String
+    Description: The ECR image URI for the Lambda function's container.
+  RestApiId:
+    Type: String
+    Description: The ID of the parent REST API.
+  RootResourceId:
+    Type: String
+    Description: The root resource ID of the parent REST API.
+  UsageKeyTableName:
+    Type: String
+    Description: The name of the DynamoDB table for usage key management.
+  AutomationUsageKeyApprovalNotifyTopicArn:
+    Type: String
+    Description: The ARN of the SNS topic for usage key approval notifications.
+  FromMailAddress:
+    Type: String
+    Description: The mail address for notify created usage key
+
+Resources:
+
+  # --------------------------------------------------------------------------
+  #  Sysmtem Manager Parameter Store
+  # --------------------------------------------------------------------------
+
+  UsageKeyTableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${SystemName}/${Enviroment}/usagekey/dynamodb/UsageKeyTableName
+      Type: String
+      Value: !Ref UsageKeyTableName
+      Description: The name of the DynamoDB table for usage key management.
+
+  UsageKeyApproveAutomationDocumentNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${SystemName}/${Enviroment}/usagekey/ssm/AutomationDocumentName
+      Type: String
+      Value: !Ref UsageKeyApproveAutomationDocument
+      Description: The name of the SSM document for authorizing the issuance of usage keys.
+
+  UsageKeyFromMailAddressParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${SystemName}/${Enviroment}/usagekey/ses/FromMailAddress
+      Type: String
+      Value: !Ref FromMailAddress
+      Description: The mail address for notify created usage key.
+
+  # --------------------------------------------------------------------------
+  #  API Gateway Resources and Methods
+  # --------------------------------------------------------------------------
+
+  UsageKeyApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !Ref RootResourceId
+      PathPart: usagekey
+      RestApiId: !Ref RestApiId
+
+  UsageKeyApiPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ApiKeyRequired: false
+      HttpMethod: POST
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UsageKeyIssutanceRequestFunction.Arn}/invocations
+      ResourceId: !Ref UsageKeyApiResource
+      RestApiId: !Ref RestApiId
+
+  # --------------------------------------------------------------------------
+  #  Lambda Functions
+  # --------------------------------------------------------------------------
+
+  UsageKeyIssutanceRequestFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures: [x86_64]
+      Code: { ImageUri: !Ref ImageUri }
+      Description: UsageKey API function for LLM Code Reviewer
+      Environment:
+        Variables:
+          PARAMETER_PATH_PREFIX: !Sub /${SystemName}/${Enviroment}/usagekey/
+      MemorySize: 128
+      PackageType: Image
+      ImageConfig:
+        Command: [usage_key.main.issutance_request_handler]
+      Role: !GetAtt UsageKeyFunctionRole.Arn
+      Timeout: 10
+
+  UsageKeyIssutanceRequestFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt UsageKeyIssutanceRequestFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/*
+
+  AutomationUsageKeyCreateUsageKeyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Architectures: [x86_64]
+      Code: { ImageUri: !Ref ImageUri }
+      Description: UsageKey API function for LLM Code Reviewer
+      Environment:
+        Variables:
+          PARAMETER_PATH_PREFIX: !Sub /${SystemName}/${Enviroment}/usagekey/
+      MemorySize: 128
+      PackageType: Image
+      ImageConfig:
+        Command: [usage_key.main.create_usage_key_handler]
+      Role: !GetAtt UsageKeyFunctionRole.Arn
+      Timeout: 15
+
+  # --------------------------------------------------------------------------
+  #  IAM Roles
+  # --------------------------------------------------------------------------
+
+  UsageKeyFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonSESFullAccess
+        - arn:aws:iam::aws:policy/AmazonAPIGatewayAdministrator
+      Policies:
+        - PolicyName: LambdaSsmParameterAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ssm:GetParametersByPath]
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${SystemName}/${Enviroment}/*
+
+  UsageKeyApprovarsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Approvars Role for LLM Code Reviewer
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: 
+          - Effect: Allow
+            Principal:
+              AWS: !Sub ${AWS::AccountId}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMAutomationApproverAccess
+
+  AutomationExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Role for SSM Automation to invoke Lambda and publish to SNS.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ssm.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SsmAutomationPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [lambda:InvokeFunction]
+                Resource: !GetAtt AutomationUsageKeyCreateUsageKeyFunction.Arn
+              - Effect: Allow
+                Action: [ssm:*]
+                Resource: '*'
+              - Effect: Allow
+                Action: [sns:Publish]
+                Resource: !Ref AutomationUsageKeyApprovalNotifyTopicArn
+
+  # --------------------------------------------------------------------------
+  #  System Manager Document
+  # --------------------------------------------------------------------------
+
+  UsageKeyApproveAutomationDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      DocumentFormat: YAML
+      Content: !Sub |
+        schemaVersion: '0.3'
+        description: 'LLM Code Reviewer Usage Key Issuance Approval Flow Document'
+        assumeRole: '${AutomationExecutionRole.Arn}'
+        parameters:
+          Username: {type: String, description: User name}
+          Email: {type: String, description: "User's email address", allowedPattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'}
+        mainSteps:
+          - name: ApproveCreateUsageKey
+            action: aws:approve
+            nextStep: IsApprovedCreateUsageKey
+            isEnd: false
+            inputs:
+              Approvers: [${UsageKeyApprovarsRole.Arn}]
+              NotificationArn: ${AutomationUsageKeyApprovalNotifyTopicArn}
+              Message: "{{ Username }}({{ Email }}) からの申請を許可しますか？"
+          - name: IsApprovedCreateUsageKey
+            action: aws:branch
+            isEnd: true
+            inputs:
+              Choices:
+                - NextStep: InvokeLambdaFunction
+                  Variable: '{{ ApproveCreateUsageKey.ApprovalStatus }}'
+                  StringEquals: Approved
+          - name: InvokeLambdaFunction
+            action: aws:invokeLambdaFunction
+            isEnd: true
+            inputs:
+              InvocationType: RequestResponse
+              FunctionName: ${AutomationUsageKeyCreateUsageKeyFunction.Arn}
+              InputPayload:
+                Username: '{{ Username }}'
+                Email: '{{ Email }}'

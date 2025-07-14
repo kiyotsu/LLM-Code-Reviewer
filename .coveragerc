@@ -1,0 +1,12 @@
+[run]
+source = src
+branch = true
+
+[report]
+show_missing = true
+exclude_lines =
+    @abstractmethod
+    @abc.abstractmethod
+
+[html]
+directory = htmlcov
