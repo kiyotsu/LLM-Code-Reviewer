@@ -1,5 +1,5 @@
 # LLM Code Reviewer
-<img src="docs/images//header.png" width="620px">
+![ヘッダー画像](docs/images//header.png "LLM Code Reviewer's header image")
 
 ## 概要
 
@@ -24,8 +24,8 @@
 * コードレビューは利用キーを必須とし、利用キーのない要求は拒否できるようにする。
 * コードレビューはサービス制限を設け、1日あたりの実行回数に制限をかけることができるようにする。
 
-## アーキテクチ
-<img src="docs/images/architecture.drawio.png">
+## アーキテクチャ
+![アーキテクチャ図](docs/images/architecture.drawio.png "LLM Code Reviewer's architecture diagram")
 
 ## 使用技術
 ### バックエンドアプリケーション
