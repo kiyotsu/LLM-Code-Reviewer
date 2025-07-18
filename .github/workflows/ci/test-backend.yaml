@@ -1,0 +1,30 @@
+name: CI - Backend Unit Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/*'
+      - 'test/*'
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover --top-level-directory . --start-directory test --verbose
