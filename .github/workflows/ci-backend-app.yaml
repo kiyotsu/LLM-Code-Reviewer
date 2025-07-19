@@ -11,13 +11,11 @@ on:
 
 jobs:
   lint_and_format:
-    name: Lin and Format check
+    name: Lint and Format check
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/ruff-action@v3
-        with: ./src
-
 
   unittest:
     needs: lint_and_format
