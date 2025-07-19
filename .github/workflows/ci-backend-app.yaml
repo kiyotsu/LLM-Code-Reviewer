@@ -1,16 +1,26 @@
-name: CI - Backend Unit Tests
+name: Backend Application CI
 
 on:
   pull_request:
     branches: [ main ]
     paths:
-      - 'src/*'
-      - 'test/*'
+      - 'src/**'
+      - 'test/**'
 
   workflow_dispatch:
 
 jobs:
-  test:
+  lint_and_format:
+    name: Lin and Format check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with: ./src
+
+
+  unittest:
+    needs: lint_and_format
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
