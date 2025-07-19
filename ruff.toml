@@ -30,7 +30,7 @@ indent-width = 4
 # Assume Python 3.12
 target-version = "py312"
 
-[lint]
+[tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
 ignore = []
 
@@ -43,7 +43,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 src = ["src"]
 
-[format]
+[tool.ruff.format]
 # Like Black, use double quotes for strings.
 quote-style = "double"
 
